@@ -1,0 +1,56 @@
+// This file is part of www.nand2tetris.org
+// and the book "The Elements of Computing Systems"
+// by Nisan and Schocken, MIT Press.
+// File name: projects/05/CPU.hdl
+
+CHIP CPU {
+
+    IN  inM[16],         // M value input (M = contents of RAM[A])
+        instruction[16], // Instruction for execution
+        reset;           // Signals whether to re-start the current
+                         // program (reset==1) or continue (reset==0).
+
+    OUT outM[16],        // M value output
+        writeM,          // Write to M? (0 or 1)
+        addressM[15],    // Address in data memory (of M)
+        pc[15];          // address of next instruction
+
+    PARTS:
+
+    //instruction decoding and register control
+    Not(in=instruction[15], out=isA);
+    
+    Or(a=isA, b=instruction[5], out=loadA);
+    
+    Mux16(a=instruction, b=outALU, sel=instruction[15], out=inA);
+    ARegister(in=inA, load=loadA, out=outA, out[0..14]=addressM);
+
+    //ALU inputs
+    Mux16(a=outA, b=inM, sel=instruction[12], out=outAM);
+
+    And(a=instruction[15], b=instruction[4], out=loadD);
+    DRegister(in=outALU, load=loadD, out=outD);
+
+    ALU(x=outD, y=outAM, 
+        zx=instruction[11], nx=instruction[10], 
+        zy=instruction[9],  ny=instruction[8], 
+        f=instruction[7],   no=instruction[6], 
+        out=outALU, out=outM, zr=zr, ng=ng);
+
+    And(a=instruction[15], b=instruction[3], out=writeM);
+
+    //jump and pc logic
+    Or(a=zr, b=ng, out=zeroOrNeg);
+    Not(in=zeroOrNeg, out=pos);
+
+    And(a=instruction[0], b=pos, out=jgt); // j3 bit: > 0
+    And(a=instruction[1], b=zr,  out=jeq); // j2 bit: = 0
+    And(a=instruction[2], b=ng,  out=jlt); // j1 bit: < 0
+
+    Or(a=jgt, b=jeq, out=jge);
+    Or(a=jge, b=jlt, out=jumpCond);
+    
+    And(a=instruction[15], b=jumpCond, out=pcLoad);
+    
+    PC(in=outA, load=pcLoad, inc=true, reset=reset, out[0..14]=pc);
+}
